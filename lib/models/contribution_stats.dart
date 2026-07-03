@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 /// 提交活跃度统计模型
 class ContributionStats {
   final int total;
