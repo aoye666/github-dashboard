@@ -37,7 +37,7 @@ class SettingsScreen extends StatelessWidget {
                         token: github.token,
                         onSaved: (token) {
                           if (token != null && token.isNotEmpty) {
-                            github.setCredentials(token, null);
+                            github.setCredentials(token, github.username);
                             github.loadUserData();
                           }
                         },
@@ -60,7 +60,7 @@ class SettingsScreen extends StatelessWidget {
                         username: github.username,
                         onSaved: (username) {
                           if (username != null && username.isNotEmpty) {
-                            github.setCredentials(null, username);
+                            github.setCredentials(github.token, username);
                             github.loadUserData();
                           }
                         },
