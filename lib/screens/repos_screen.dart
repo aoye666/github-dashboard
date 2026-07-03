@@ -4,6 +4,7 @@ import '../providers/github_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/repo_card.dart';
+import 'repo_detail_screen.dart';
 
 class ReposScreen extends StatefulWidget {
   const ReposScreen({super.key});
@@ -122,7 +123,10 @@ class _ReposScreenState extends State<ReposScreen> {
     );
   }
 
-  void _showRepoDetail(dynamic repo) {
-    // TODO: 导航到仓库详情页
+  void _showRepoDetail(Repository repo) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => RepoDetailScreen(repo: repo)),
+    );
   }
 }

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/contribution_stats.dart';
+import '../models/repository.dart';
+import '../models/user_event.dart';
 import '../providers/github_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/formatters.dart';
@@ -68,44 +71,26 @@ class ActivityScreen extends StatelessWidget {
                 SizedBox(height: 16),
 
                 // Top 仓库排行 (Stars)
-                GlassCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Top 仓库 (Stars)', style: Theme.of(context).textTheme.titleMedium),
-                      SizedBox(height: 16),
-                      ...provider.sortRepos(provider.repos, RepoSort.stars)
-                        .take(5)
-                        .map((r) => _RankItem(
-                          name: r.name,
-                          value: r.stargazersCount,
-                          icon: Icons.star,
-                          color: Colors.amber,
-                          maxValue: provider.sortRepos(provider.repos, RepoSort.stars).first.stargazersCount,
-                        )),
-                    ],
-                  ),
+                _TopRankSection(
+                  title: 'Top 仓库 (Stars)',
+                  repos: provider.repos,
+                  sort: RepoSort.stars,
+                  icon: Icons.star,
+                  color: Colors.amber,
+                  getValue: (r) => r.stargazersCount,
+                  provider: provider,
                 ),
                 SizedBox(height: 16),
 
                 // Top 仓库排行 (Forks)
-                GlassCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Top 仓库 (Forks)', style: Theme.of(context).textTheme.titleMedium),
-                      SizedBox(height: 16),
-                      ...provider.sortRepos(provider.repos, RepoSort.forks)
-                        .take(5)
-                        .map((r) => _RankItem(
-                          name: r.name,
-                          value: r.forksCount,
-                          icon: Icons.fork_right,
-                          color: Colors.blueAccent,
-                          maxValue: provider.sortRepos(provider.repos, RepoSort.forks).first.forksCount,
-                        )),
-                    ],
-                  ),
+                _TopRankSection(
+                  title: 'Top 仓库 (Forks)',
+                  repos: provider.repos,
+                  sort: RepoSort.forks,
+                  icon: Icons.fork_right,
+                  color: Colors.blueAccent,
+                  getValue: (r) => r.forksCount,
+                  provider: provider,
                 ),
                 SizedBox(height: 16),
 
@@ -147,7 +132,7 @@ class _LanguageBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final percentage = total > 0 ? count / total : 0.0;
-    final color = _getColor(language);
+    final color = LanguageStats.getColor(language);
 
     return Padding(
       padding: EdgeInsets.only(bottom: 12),
@@ -181,22 +166,11 @@ class _LanguageBar extends StatelessWidget {
       ),
     );
   }
-
-  Color _getColor(String lang) {
-    final colors = {
-      'Dart': Color(0xFF00B4AB), 'JavaScript': Color(0xFFF1E05A), 'TypeScript': Color(0xFF2B7489),
-      'Python': Color(0xFF3572A5), 'Java': Color(0xFFB07219), 'Kotlin': Color(0xFFA97BFF),
-      'Swift': Color(0xFFF05138), 'Go': Color(0xFF00ADD8), 'Rust': Color(0xFFDEA584),
-      'C++': Color(0xFFF34B7D), 'HTML': Color(0xFFE34C26), 'CSS': Color(0xFF563D7C),
-      'Vue': Color(0xFF41B883), 'Shell': Color(0xFF89E051),
-    };
-    return colors[lang] ?? Colors.grey;
-  }
 }
 
 /// 热力图
 class _HeatMap extends StatelessWidget {
-  final List<dynamic> events;
+  final List<UserEvent> events;
   const _HeatMap({required this.events});
 
   @override
@@ -286,7 +260,7 @@ class _HeatMap extends StatelessWidget {
 
 /// 月度更新柱状图
 class _MonthlyBarChart extends StatelessWidget {
-  final List<dynamic> repos;
+  final List<Repository> repos;
   const _MonthlyBarChart({required this.repos});
 
   @override
@@ -346,6 +320,54 @@ class _MonthlyBarChart extends StatelessWidget {
             ),
           );
         }),
+      ),
+    );
+  }
+}
+
+/// Top 仓库排行组件（单次排序缓存）
+class _TopRankSection extends StatelessWidget {
+  final String title;
+  final List<Repository> repos;
+  final RepoSort sort;
+  final IconData icon;
+  final Color color;
+  final int Function(Repository) getValue;
+  final GitHubProvider provider;
+
+  const _TopRankSection({
+    required this.title,
+    required this.repos,
+    required this.sort,
+    required this.icon,
+    required this.color,
+    required this.getValue,
+    required this.provider,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final sorted = provider.sortRepos(repos, sort);
+    final top = sorted.take(5).toList();
+    final maxValue = sorted.isEmpty ? 0 : getValue(sorted.first);
+
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.titleMedium),
+          SizedBox(height: 16),
+          if (top.isEmpty)
+            Text('暂无数据', style: TextStyle(color: Colors.grey, fontSize: 13))
+          else
+            ...top.map((r) => _RankItem(
+              name: r.name,
+              value: getValue(r),
+              icon: icon,
+              color: color,
+              maxValue: maxValue,
+            )),
+        ],
       ),
     );
   }

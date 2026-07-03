@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/repository.dart';
+import '../models/contribution_stats.dart';
 import '../utils/formatters.dart';
 import 'glass_card.dart';
 
@@ -96,7 +97,7 @@ class RepoCard extends StatelessWidget {
                   width: 10,
                   height: 10,
                   decoration: BoxDecoration(
-                    color: _getLanguageColor(repo.language!),
+                    color: LanguageStats.getColor(repo.language!),
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -151,25 +152,5 @@ class RepoCard extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  Color _getLanguageColor(String language) {
-    final colors = {
-      'Dart': Color(0xFF00B4AB),
-      'JavaScript': Color(0xFFF1E05A),
-      'TypeScript': Color(0xFF2B7489),
-      'Python': Color(0xFF3572A5),
-      'Java': Color(0xFFB07219),
-      'Kotlin': Color(0xFFA97BFF),
-      'Swift': Color(0xFFF05138),
-      'Go': Color(0xFF00ADD8),
-      'Rust': Color(0xFFDEA584),
-      'C++': Color(0xFFF34B7D),
-      'HTML': Color(0xFFE34C26),
-      'CSS': Color(0xFF563D7C),
-      'Vue': Color(0xFF41B883),
-      'Shell': Color(0xFF89E051),
-    };
-    return colors[language] ?? Colors.grey;
   }
 }

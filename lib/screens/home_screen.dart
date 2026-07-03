@@ -4,6 +4,8 @@ import '../providers/github_provider.dart';
 import '../providers/theme_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/formatters.dart';
+import '../models/github_user.dart';
+import '../models/user_event.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/stat_card.dart';
 import '../widgets/repo_card.dart';
@@ -193,7 +195,7 @@ class _DashboardPage extends StatelessWidget {
 
 /// 用户卡片
 class _UserCard extends StatelessWidget {
-  final dynamic user;
+  final GitHubUser user;
   const _UserCard({required this.user});
 
   @override
@@ -266,7 +268,7 @@ class _MiniStat extends StatelessWidget {
 
 /// 事件项
 class _EventItem extends StatelessWidget {
-  final dynamic event;
+  final UserEvent event;
   const _EventItem({required this.event});
 
   @override

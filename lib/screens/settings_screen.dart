@@ -19,10 +19,10 @@ class SettingsScreen extends StatelessWidget {
           decoration: AppTheme.gradientDecoration(isDark: isDark),
           child: SafeArea(
             child: ListView(
-              padding: EdgeInsets.all(20),
+              padding: const EdgeInsets.all(20),
               children: [
                 Text('设置', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700)),
-                SizedBox(height: 20),
+                const SizedBox(height: 20),
 
                 // Token 输入
                 GlassCard(
@@ -30,11 +30,11 @@ class SettingsScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('GitHub Token', style: Theme.of(context).textTheme.titleMedium),
-                      SizedBox(height: 8),
-                      Text('输入 Personal Access Token 以获取完整数据', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                      SizedBox(height: 12),
+                      const SizedBox(height: 8),
+                      Text('输入 Personal Access Token 以获取完整数据', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                      const SizedBox(height: 12),
                       _TokenField(
-                        token: github.token,
+                        hasToken: github.hasToken,
                         onSaved: (token) {
                           if (token != null && token.isNotEmpty) {
                             github.setCredentials(token, github.username);
@@ -45,7 +45,7 @@ class SettingsScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
 
                 // 用户名输入
                 GlassCard(
@@ -53,14 +53,14 @@ class SettingsScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('用户名（无需 Token）', style: Theme.of(context).textTheme.titleMedium),
-                      SizedBox(height: 8),
-                      Text('输入 GitHub 用户名查看公开数据', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                      SizedBox(height: 12),
+                      const SizedBox(height: 8),
+                      Text('输入 GitHub 用户名查看公开数据', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                      const SizedBox(height: 12),
                       _UsernameField(
                         username: github.username,
                         onSaved: (username) {
                           if (username != null && username.isNotEmpty) {
-                            github.setCredentials(github.token, username);
+                            github.setCredentials(github.hasToken ? null : null, username);
                             github.loadUserData();
                           }
                         },
@@ -68,7 +68,7 @@ class SettingsScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
 
                 // 主题切换
                 GlassCard(
@@ -78,7 +78,7 @@ class SettingsScreen extends StatelessWidget {
                       Row(
                         children: [
                           Icon(Icons.dark_mode_outlined, color: AppTheme.primaryGreen),
-                          SizedBox(width: 12),
+                          const SizedBox(width: 12),
                           Text('深色模式', style: Theme.of(context).textTheme.titleMedium),
                         ],
                       ),
@@ -90,28 +90,28 @@ class SettingsScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
 
                 // 退出登录
                 GlassCard(
-                  onTap: () => github.setCredentials(null, null),
+                  onTap: () => _showClearConfirm(context, github),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.logout, color: Colors.redAccent),
-                      SizedBox(width: 8),
-                      Text('清除数据', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w500)),
+                      const Icon(Icons.logout, color: Colors.redAccent),
+                      const SizedBox(width: 8),
+                      const Text('清除数据', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w500)),
                     ],
                   ),
                 ),
-                SizedBox(height: 24),
+                const SizedBox(height: 24),
 
                 // 关于
                 Center(
                   child: Column(
                     children: [
-                      Text('GitHub Dashboard v1.0.0', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                      SizedBox(height: 4),
+                      const Text('GitHub Dashboard v1.1.0', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      const SizedBox(height: 4),
                       GestureDetector(
                         onTap: () => launchUrl(Uri.parse('https://github.com/aoye666')),
                         child: Text('by aoye666', style: TextStyle(fontSize: 12, color: AppTheme.primaryGreen)),
@@ -126,12 +126,36 @@ class SettingsScreen extends StatelessWidget {
       },
     );
   }
+
+  Future<void> _showClearConfirm(BuildContext context, GitHubProvider github) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('确认清除数据'),
+        content: const Text('此操作将清除本地保存的 Token 和用户名，确定要继续吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+            child: const Text('清除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      github.setCredentials(null, null);
+    }
+  }
 }
 
 class _TokenField extends StatefulWidget {
-  final String? token;
+  final bool hasToken;
   final Function(String?) onSaved;
-  const _TokenField({this.token, required this.onSaved});
+  const _TokenField({required this.hasToken, required this.onSaved});
 
   @override
   State<_TokenField> createState() => _TokenFieldState();
@@ -144,7 +168,7 @@ class _TokenFieldState extends State<_TokenField> {
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.token ?? '');
+    _controller = TextEditingController(text: '');
   }
 
   @override
@@ -156,36 +180,62 @@ class _TokenFieldState extends State<_TokenField> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: TextField(
-            controller: _controller,
-            obscureText: _obscure,
-            style: TextStyle(fontSize: 13),
-            decoration: InputDecoration(
-              hintText: 'ghp_xxxxxxxxxxxx',
-              hintStyle: TextStyle(color: Colors.grey),
-              filled: true,
-              fillColor: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              suffixIcon: IconButton(
-                icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility, size: 18),
-                onPressed: () => setState(() => _obscure = !_obscure),
-              ),
+        if (widget.hasToken) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryGreen.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.3)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.check_circle, color: AppTheme.primaryGreen, size: 16),
+                const SizedBox(width: 8),
+                Text('已保存 Token', style: TextStyle(fontSize: 12, color: AppTheme.primaryGreen)),
+              ],
             ),
           ),
-        ),
-        SizedBox(width: 8),
-        ElevatedButton(
-          onPressed: () => widget.onSaved(_controller.text),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppTheme.primaryGreen,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-          child: Text('保存'),
+          const SizedBox(height: 8),
+          const Text('如需更换 Token，请输入新的 Token 后点击保存',
+            style: TextStyle(fontSize: 11, color: Colors.grey)),
+          const SizedBox(height: 8),
+        ],
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _controller,
+                obscureText: _obscure,
+                style: const TextStyle(fontSize: 13),
+                decoration: InputDecoration(
+                  hintText: 'ghp_xxxxxxxxxxxx',
+                  hintStyle: const TextStyle(color: Colors.grey),
+                  filled: true,
+                  fillColor: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  suffixIcon: IconButton(
+                    icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility, size: 18),
+                    onPressed: () => setState(() => _obscure = !_obscure),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: () => widget.onSaved(_controller.text),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryGreen,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('保存'),
+            ),
+          ],
         ),
       ],
     );
@@ -224,18 +274,18 @@ class _UsernameFieldState extends State<_UsernameField> {
         Expanded(
           child: TextField(
             controller: _controller,
-            style: TextStyle(fontSize: 13),
+            style: const TextStyle(fontSize: 13),
             decoration: InputDecoration(
               hintText: '输入 GitHub 用户名',
-              hintStyle: TextStyle(color: Colors.grey),
+              hintStyle: const TextStyle(color: Colors.grey),
               filled: true,
               fillColor: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             ),
           ),
         ),
-        SizedBox(width: 8),
+        const SizedBox(width: 8),
         ElevatedButton(
           onPressed: () => widget.onSaved(_controller.text),
           style: ElevatedButton.styleFrom(
@@ -243,7 +293,7 @@ class _UsernameFieldState extends State<_UsernameField> {
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
-          child: Text('查看'),
+          child: const Text('查看'),
         ),
       ],
     );

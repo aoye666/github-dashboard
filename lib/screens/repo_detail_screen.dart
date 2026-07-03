@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/repository.dart';
+import '../providers/github_provider.dart';
 import '../services/github_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/formatters.dart';
@@ -15,10 +17,10 @@ class RepoDetailScreen extends StatefulWidget {
 }
 
 class _RepoDetailScreenState extends State<RepoDetailScreen> {
-  final GitHubService _service = GitHubService();
   Map<String, int> _languages = {};
   List<Map<String, dynamic>> _contributors = [];
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -27,21 +29,38 @@ class _RepoDetailScreenState extends State<RepoDetailScreen> {
   }
 
   Future<void> _loadDetails() async {
+    final service = context.read<GitHubProvider>().service;
+    final parts = widget.repo.fullName.split('/');
+    if (parts.length != 2) {
+      setState(() => _loading = false);
+      return;
+    }
     try {
-      final parts = widget.repo.fullName.split('/');
-      if (parts.length == 2) {
-        final langs = await _service.getRepoLanguages(parts[0], parts[1]);
-        final contribs = await _service.getRepoContributors(parts[0], parts[1]);
-        if (mounted) {
-          setState(() {
-            _languages = langs;
-            _contributors = contribs;
-            _loading = false;
-          });
-        }
+      final results = await Future.wait([
+        service.getRepoLanguages(parts[0], parts[1]),
+        service.getRepoContributors(parts[0], parts[1]),
+      ]);
+      if (mounted) {
+        setState(() {
+          _languages = results[0] as Map<String, int>;
+          _contributors = results[1] as List<Map<String, dynamic>>;
+          _loading = false;
+        });
+      }
+    } on GitHubException catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.message;
+          _loading = false;
+        });
       }
     } catch (e) {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -61,7 +80,7 @@ class _RepoDetailScreenState extends State<RepoDetailScreen> {
               // 顶栏
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: EdgeInsets.fromLTRB(8, 8, 16, 0),
+                  padding: const EdgeInsets.fromLTRB(8, 8, 16, 0),
                   child: Row(
                     children: [
                       IconButton(
@@ -83,7 +102,7 @@ class _RepoDetailScreenState extends State<RepoDetailScreen> {
               // 仓库信息卡片
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                   child: GlassCard(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -92,7 +111,7 @@ class _RepoDetailScreenState extends State<RepoDetailScreen> {
                           children: [
                             Icon(repo.private ? Icons.lock_outline : Icons.folder_outlined,
                               color: AppTheme.primaryGreen, size: 20),
-                            SizedBox(width: 8),
+                            const SizedBox(width: 8),
                             Expanded(
                               child: Text(repo.fullName,
                                 style: theme.textTheme.titleMedium?.copyWith(color: AppTheme.primaryGreen)),
@@ -100,22 +119,22 @@ class _RepoDetailScreenState extends State<RepoDetailScreen> {
                           ],
                         ),
                         if (repo.description != null && repo.description!.isNotEmpty) ...[
-                          SizedBox(height: 10),
+                          const SizedBox(height: 10),
                           Text(repo.description!, style: theme.textTheme.bodyMedium?.copyWith(
                             color: theme.textTheme.bodyMedium?.color?.withOpacity(0.8))),
                         ],
                         if (repo.topics != null && repo.topics!.isNotEmpty) ...[
-                          SizedBox(height: 10),
+                          const SizedBox(height: 10),
                           Wrap(
                             spacing: 6, runSpacing: 6,
                             children: repo.topics!.map((t) => Container(
-                              padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
                                 color: AppTheme.primaryGreen.withOpacity(0.15),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.3)),
                               ),
-                              child: Text(t, style: TextStyle(fontSize: 11, color: AppTheme.primaryGreen)),
+                              child: Text(t, style: const TextStyle(fontSize: 11, color: AppTheme.primaryGreen)),
                             )).toList(),
                           ),
                         ],
@@ -128,33 +147,49 @@ class _RepoDetailScreenState extends State<RepoDetailScreen> {
               // 统计数据
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                   child: Row(
                     children: [
                       _StatItem('Stars', repo.stargazersCount, Icons.star_outline, Colors.amber),
-                      SizedBox(width: 8),
+                      const SizedBox(width: 8),
                       _StatItem('Forks', repo.forksCount, Icons.fork_right, Colors.blueAccent),
-                      SizedBox(width: 8),
+                      const SizedBox(width: 8),
                       _StatItem('Watchers', repo.watchersCount, Icons.visibility_outlined, Colors.teal),
-                      SizedBox(width: 8),
+                      const SizedBox(width: 8),
                       _StatItem('Issues', repo.openIssuesCount, Icons.bug_report_outlined, Colors.redAccent),
                     ],
                   ),
                 ),
               ),
 
+              // 错误提示
+              if (_error != null)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                    child: GlassCard(
+                      child: Row(
+                        children: [
+                          const Icon(Icons.error_outline, color: Colors.redAccent),
+                          const SizedBox(width: 12),
+                          Expanded(child: Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 13))),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
               // 语言分布
               if (_languages.isNotEmpty)
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: EdgeInsets.fromLTRB(20, 12, 20, 0),
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                     child: GlassCard(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text('语言分布', style: theme.textTheme.titleMedium),
-                          SizedBox(height: 12),
-                          // 语言条
+                          const SizedBox(height: 12),
                           ClipRRect(
                             borderRadius: BorderRadius.circular(4),
                             child: Row(
@@ -167,7 +202,7 @@ class _RepoDetailScreenState extends State<RepoDetailScreen> {
                               }).toList(),
                             ),
                           ),
-                          SizedBox(height: 12),
+                          const SizedBox(height: 12),
                           Wrap(
                             spacing: 16, runSpacing: 8,
                             children: _languages.entries.map((e) {
@@ -177,9 +212,9 @@ class _RepoDetailScreenState extends State<RepoDetailScreen> {
                                 children: [
                                   Container(width: 10, height: 10,
                                     decoration: BoxDecoration(color: _langColor(e.key), shape: BoxShape.circle)),
-                                  SizedBox(width: 4),
+                                  const SizedBox(width: 4),
                                   Text('${e.key} ${Formatters.formatPercentage(pct)}',
-                                    style: TextStyle(fontSize: 12)),
+                                    style: const TextStyle(fontSize: 12)),
                                 ],
                               );
                             }).toList(),
@@ -194,13 +229,13 @@ class _RepoDetailScreenState extends State<RepoDetailScreen> {
               if (_contributors.isNotEmpty)
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: EdgeInsets.fromLTRB(20, 12, 20, 0),
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                     child: GlassCard(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text('贡献者 (${_contributors.length})', style: theme.textTheme.titleMedium),
-                          SizedBox(height: 12),
+                          const SizedBox(height: 12),
                           Wrap(
                             spacing: 8, runSpacing: 8,
                             children: _contributors.take(20).map((c) => Column(
@@ -210,13 +245,13 @@ class _RepoDetailScreenState extends State<RepoDetailScreen> {
                                   radius: 18,
                                   backgroundImage: NetworkImage(c['avatar_url'] ?? ''),
                                 ),
-                                SizedBox(height: 4),
+                                const SizedBox(height: 4),
                                 SizedBox(
                                   width: 50,
-                                  child: Text(c['login'] ?? '', style: TextStyle(fontSize: 9),
+                                  child: Text(c['login'] ?? '', style: const TextStyle(fontSize: 9),
                                     overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
                                 ),
-                                Text('${c['contributions'] ?? 0}', style: TextStyle(fontSize: 10, color: AppTheme.primaryGreen)),
+                                Text('${c['contributions'] ?? 0}', style: const TextStyle(fontSize: 10, color: AppTheme.primaryGreen)),
                               ],
                             )).toList(),
                           ),
@@ -229,7 +264,7 @@ class _RepoDetailScreenState extends State<RepoDetailScreen> {
               // 元信息
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: EdgeInsets.fromLTRB(20, 12, 20, 20),
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
                   child: GlassCard(
                     child: Column(
                       children: [
@@ -246,7 +281,7 @@ class _RepoDetailScreenState extends State<RepoDetailScreen> {
 
               // Loading
               if (_loading)
-                SliverToBoxAdapter(
+                const SliverToBoxAdapter(
                   child: Center(child: Padding(
                     padding: EdgeInsets.all(40),
                     child: CircularProgressIndicator(color: AppTheme.primaryGreen),
@@ -282,13 +317,14 @@ class _StatItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: GlassCard(
-        padding: EdgeInsets.all(12),
+        padding: const EdgeInsets.all(12),
         child: Column(
           children: [
             Icon(icon, color: color, size: 20),
-            SizedBox(height: 6),
-            Text(Formatters.formatNumber(value), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: color)),
-            Text(label, style: TextStyle(fontSize: 10, color: Colors.grey)),
+            const SizedBox(height: 6),
+            Text(Formatters.formatNumber(value),
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: color)),
+            Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
           ],
         ),
       ),
@@ -304,12 +340,12 @@ class _InfoRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(fontSize: 13, color: Colors.grey)),
-          Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+          Text(label, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+          Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
         ],
       ),
     );

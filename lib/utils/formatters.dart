@@ -41,3 +41,11 @@ class Formatters {
     return '${(value * 100).toStringAsFixed(1)}%';
   }
 }
+
+/// String 首字母大写扩展
+extension StringCapitalize on String {
+  String capitalize() {
+    if (isEmpty) return this;
+    return '${this[0].toUpperCase()}${substring(1)}';
+  }
+}

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/github_user.dart';
 import '../models/repository.dart';
@@ -7,25 +8,28 @@ import '../services/github_service.dart';
 
 /// GitHub 数据状态管理
 class GitHubProvider extends ChangeNotifier {
-  final GitHubService _service = GitHubService();
-  
+  final GitHubService _service;
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+
   GitHubUser? _user;
   List<Repository> _repos = [];
   List<UserEvent> _events = [];
-  String? _token;
   String? _username;
   bool _isLoading = false;
   String? _error;
+  bool _hasToken = false;
+  bool _initialized = false;
 
   // Getters
   GitHubUser? get user => _user;
   List<Repository> get repos => _repos;
   List<UserEvent> get events => _events;
-  String? get token => _token;
   String? get username => _username;
   bool get isLoading => _isLoading;
   String? get error => _error;
-  bool get isAuthenticated => _token != null && _token!.isNotEmpty;
+  bool get hasToken => _hasToken;
+  bool get isAuthenticated => _hasToken;
+  bool get initialized => _initialized;
 
   /// 统计数据
   int get totalStars => _repos.fold(0, (sum, r) => sum + r.stargazersCount);
@@ -46,71 +50,87 @@ class GitHubProvider extends ChangeNotifier {
     return stats;
   }
 
-  GitHubProvider() {
-    _loadSavedToken();
-  }
+  GitHubProvider({GitHubService? service})
+      : _service = service ?? GitHubService();
 
-  /// 加载保存的 Token
-  Future<void> _loadSavedToken() async {
+  /// 初始化（加载已保存的 token 和用户名）
+  Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
-    _token = prefs.getString('github_token');
     _username = prefs.getString('github_username');
-    _service.setToken(_token);
+    _hasToken = await _secureStorage.containsKey(key: 'github_token');
+    if (_hasToken) {
+      final token = await _secureStorage.read(key: 'github_token');
+      _service.setToken(token);
+    }
+    _initialized = true;
     if (_username != null) {
       await loadUserData();
+    } else {
+      notifyListeners();
     }
-    notifyListeners();
   }
 
   /// 设置 Token 和用户名
   Future<void> setCredentials(String? token, String? username) async {
-    _token = token;
-    _username = username;
-    _service.setToken(token);
-    
-    final prefs = await SharedPreferences.getInstance();
-    if (token != null) {
-      await prefs.setString('github_token', token);
+    _user = null;
+    _repos = [];
+    _events = [];
+    _error = null;
+
+    if (token != null && token.isNotEmpty) {
+      _hasToken = true;
+      _service.setToken(token);
+      await _secureStorage.write(key: 'github_token', value: token);
     } else {
-      await prefs.remove('github_token');
+      _hasToken = false;
+      _service.setToken(null);
+      await _secureStorage.delete(key: 'github_token');
     }
-    if (username != null) {
+
+    _username = username;
+    final prefs = await SharedPreferences.getInstance();
+    if (username != null && username.isNotEmpty) {
       await prefs.setString('github_username', username);
     } else {
       await prefs.remove('github_username');
     }
-    
+
     notifyListeners();
   }
 
   /// 加载用户数据
   Future<void> loadUserData() async {
-    if (_username == null && !isAuthenticated) return;
-    
+    if (_username == null && !_hasToken) return;
+
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      // 获取用户信息
-      if (isAuthenticated) {
+      if (_hasToken) {
         _user = await _service.getAuthenticatedUser();
         _username = _user!.login;
       } else if (_username != null) {
         _user = await _service.getUser(_username!);
       }
 
-      // 获取仓库列表
-      if (isAuthenticated) {
-        _repos = await _service.getAuthenticatedUserRepos(perPage: 100);
-      } else if (_username != null) {
-        _repos = await _service.getUserRepos(_username!, perPage: 100);
-      }
+      final reposFuture = _hasToken
+          ? _service.getAuthenticatedUserRepos(perPage: 100)
+          : (_username != null
+              ? _service.getUserRepos(_username!, perPage: 100)
+              : null);
 
-      // 获取事件
-      if (_username != null) {
-        _events = await _service.getUserEvents(_username!, perPage: 50);
-      }
+      final eventsFuture = _username != null
+          ? _service.getUserEvents(_username!, perPage: 50)
+          : null;
+
+      final results = await Future.wait([
+        reposFuture ?? Future.value(<Repository>[]),
+        eventsFuture ?? Future.value(<UserEvent>[]),
+      ]);
+
+      _repos = results[0] as List<Repository>;
+      _events = results[1] as List<UserEvent>;
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -127,7 +147,7 @@ class GitHubProvider extends ChangeNotifier {
   /// 按名称搜索仓库
   List<Repository> searchRepos(String query) {
     if (query.isEmpty) return _repos;
-    return _repos.where((r) => 
+    return _repos.where((r) =>
       r.name.toLowerCase().contains(query.toLowerCase()) ||
       (r.description?.toLowerCase().contains(query.toLowerCase()) ?? false)
     ).toList();
@@ -152,6 +172,9 @@ class GitHubProvider extends ChangeNotifier {
     }
     return sorted;
   }
+
+  /// 获取 service 供子页面复用（已配置 token）
+  GitHubService get service => _service;
 }
 
 enum RepoSort { updated, stars, forks, issues }

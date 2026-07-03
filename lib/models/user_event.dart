@@ -1,3 +1,5 @@
+import '../utils/formatters.dart';
+
 /// GitHub 用户事件模型（提交、PR、Issue 等）
 class UserEvent {
   final String id;
@@ -72,12 +74,5 @@ class UserEvent {
       default:
         return '📌';
     }
-  }
-}
-
-extension StringCapitalize on String {
-  String capitalize() {
-    if (isEmpty) return this;
-    return '${this[0].toUpperCase()}${substring(1)}';
   }
 }
